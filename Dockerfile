@@ -22,6 +22,7 @@ WORKDIR /usr/src/app
 
 # --- BUILD STAGE ---
 FROM base AS build
+ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 COPY package.json pnpm-lock.yaml ./
 # If lock file doesn't exist, we run pnpm install without lockfile check
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile || pnpm install
