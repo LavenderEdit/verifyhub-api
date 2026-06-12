@@ -1,0 +1,344 @@
+generator client {
+  provider     = "prisma-client-js"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  DEVELOPER
+  VIEWER
+}
+
+enum WhatsappConnectorStatus {
+  PENDING_QR
+  QR_READY
+  AUTHENTICATED
+  READY
+  DISCONNECTED
+  RECONNECTING
+  FAILED
+  DELETED
+}
+
+enum Channel {
+  EMAIL
+  WHATSAPP
+}
+
+enum ChallengePurpose {
+  VERIFY_EMAIL
+  VERIFY_PHONE
+  LOGIN
+  REGISTER
+  PASSWORD_RESET
+  CUSTOM
+}
+
+enum ChallengeStatus {
+  PENDING
+  QUEUED
+  SENT
+  DELIVERED
+  FAILED
+  EXPIRED
+  VERIFIED
+  CANCELLED
+}
+
+enum DeliveryStatus {
+  QUEUED
+  SENDING
+  SENT
+  DELIVERED
+  FAILED
+  RETRYING
+  CANCELLED
+}
+
+enum WebhookStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum TemplateType {
+  EMAIL
+  WHATSAPP
+}
+
+// HUMAN / CONTROL PLANE MODELS
+
+model User {
+  id               String            @id @default(uuid())
+  email            String            @unique
+  passwordHash     String
+  emailVerified    Boolean           @default(false)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  memberships      WorkspaceMember[]
+  refreshTokens    RefreshToken[]
+  auditLogs        AuditLog[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@map("refresh_tokens")
+}
+
+model Workspace {
+  id                 String              @id @default(uuid())
+  name               String
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  members            WorkspaceMember[]
+  projects           Project[]
+  smtpConnectors     SmtpConnector[]
+  whatsappConnectors WhatsappConnector[]
+  templates          Template[]
+  challenges         Challenge[]
+  auditLogs          AuditLog[]
+  quotaPolicies      QuotaPolicy[]
+  usageCounters      UsageCounter[]
+
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id          String    @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        Role      @default(DEVELOPER)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([workspaceId, userId])
+  @@map("workspace_members")
+}
+
+model Project {
+  id             String          @id @default(uuid())
+  name           String
+  workspaceId    String
+  workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  allowedDomains String[]        @default([])
+  webhookUrl     String?
+  webhookSecret  String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  apiKeys        ApiKey[]
+  challenges     Challenge[]
+  quotaPolicies  QuotaPolicy[]
+  usageCounters  UsageCounter[]
+  auditLogs      AuditLog[]
+
+  @@map("projects")
+}
+
+model ApiKey {
+  id          String    @id @default(uuid())
+  name        String
+  keyHash     String    @unique
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workspaceId String
+  scopes      String[]  @default([])
+  enabled     Boolean   @default(true)
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("api_keys")
+}
+
+// DELIVERY PLANE MODELS
+
+model SmtpConnector {
+  id                String    @id @default(uuid())
+  workspaceId       String
+  workspace         Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  host              String
+  port              Int
+  secure            Boolean   @default(true)
+  username          String
+  passwordEncrypted String
+  fromName          String
+  fromEmail         String
+  replyTo           String?
+  maxDailySends     Int       @default(1000)
+  maxHourlySends    Int       @default(100)
+  enabled           Boolean   @default(true)
+  testedAt          DateTime?
+  lastError         String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@map("smtp_connectors")
+}
+
+model WhatsappConnector {
+  id           String                  @id @default(uuid())
+  workspaceId  String
+  workspace    Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name         String
+  status       WhatsappConnectorStatus @default(PENDING_QR)
+  qrCode       String?
+  lastError    String?
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+  events       WhatsappSessionEvent[]
+  deliveries   DeliveryAttempt[]
+
+  @@map("whatsapp_connectors")
+}
+
+model WhatsappSessionEvent {
+  id          String            @id @default(uuid())
+  connectorId String
+  connector   WhatsappConnector @relation(fields: [connectorId], references: [id], onDelete: Cascade)
+  eventType   String
+  message     String?
+  createdAt   DateTime          @default(now())
+
+  @@map("whatsapp_session_events")
+}
+
+model Template {
+  id            String            @id @default(uuid())
+  name          String
+  workspaceId   String
+  workspace     Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  type          TemplateType
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  versions      TemplateVersion[]
+
+  @@unique([workspaceId, name])
+  @@map("templates")
+}
+
+model TemplateVersion {
+  id           String   @id @default(uuid())
+  templateId   String
+  template     Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  versionNumber Int
+  subject      String?  // Needed for emails
+  bodyHtml     String?
+  bodyText     String   // Mandatory plain text or template body
+  isCurrent    Boolean  @default(false)
+  createdById  String
+  createdAt    DateTime @default(now())
+
+  @@map("template_versions")
+}
+
+model Challenge {
+  id                   String           @id @default(uuid())
+  workspaceId          String
+  workspace            Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  projectId            String
+  project              Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  channel              Channel
+  purpose              ChallengePurpose
+  destinationHash      String
+  destinationEncrypted String
+  codeHash             String
+  codeLength           Int              @default(6)
+  expiresAt            DateTime
+  consumedAt           DateTime?
+  status               ChallengeStatus  @default(PENDING)
+  maxAttempts          Int              @default(5)
+  attempts             Int              @default(0)
+  resendCount          Int              @default(0)
+  lastSentAt           DateTime?
+  metadata             Json?
+  idempotencyKey       String?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  deliveries           DeliveryAttempt[]
+
+  @@unique([projectId, idempotencyKey])
+  @@map("challenges")
+}
+
+model DeliveryAttempt {
+  id          String             @id @default(uuid())
+  challengeId String
+  challenge   Challenge          @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  connectorId String?
+  whatsapp    WhatsappConnector? @relation(fields: [connectorId], references: [id], onDelete: SetNull)
+  status      DeliveryStatus     @default(QUEUED)
+  error       String?
+  attempt     Int                @default(1)
+  sentAt      DateTime?
+  deliveredAt DateTime?
+  createdAt   DateTime           @default(now())
+
+  @@map("delivery_attempts")
+}
+
+// AUDITING, BILLING & QUOTAS
+
+model AuditLog {
+  id          String     @id @default(uuid())
+  userId      String?
+  user        User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  workspaceId String?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  projectId   String?
+  project     Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  action      String
+  ipAddress   String?
+  userAgent   String?
+  details     Json?
+  createdAt   DateTime   @default(now())
+
+  @@map("audit_logs")
+}
+
+model QuotaPolicy {
+  id           String    @id @default(uuid())
+  workspaceId  String
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  projectId    String?
+  project      Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  dailyLimit   Int       @default(5000)
+  hourlyLimit  Int       @default(500)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("quota_policies")
+}
+
+model UsageCounter {
+  id           String    @id @default(uuid())
+  workspaceId  String
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  projectId    String?
+  project      Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  month        Int
+  year         Int
+  emailCount   Int       @default(0)
+  whatsappCount Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([workspaceId, projectId, month, year])
+  @@map("usage_counters")
+}
