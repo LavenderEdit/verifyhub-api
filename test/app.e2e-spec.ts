@@ -1,3 +1,11 @@
+// Mock isomorphic-dompurify to prevent ESM import issues in Jest
+jest.mock('isomorphic-dompurify', () => ({
+  __esModule: true,
+  default: {
+    sanitize: (val: string) => val,
+  },
+}));
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import request from 'supertest';
