@@ -52,8 +52,7 @@ export class VerifyLinkController {
       }
 
       if (challenge.status === 'VERIFIED') {
-        const redirectUrl =
-          challenge.metadata && (challenge.metadata as any).actionUrl;
+        const redirectUrl = (challenge as any).metadata?.actionUrl;
         return this.renderPage(res, {
           success: true,
           title: 'Ya Verificado',
@@ -108,8 +107,7 @@ export class VerifyLinkController {
         },
       );
 
-      const redirectUrl =
-        challenge.metadata && (challenge.metadata as any).actionUrl;
+      const redirectUrl = (challenge as any).metadata?.actionUrl;
 
       return this.renderPage(res, {
         success: true,
