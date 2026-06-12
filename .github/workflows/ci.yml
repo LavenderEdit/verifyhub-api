@@ -1,0 +1,91 @@
+name: VerifyHub API CI
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: verifyhub_user
+          POSTGRES_PASSWORD: verifyhub_password
+          POSTGRES_DB: verifyhub_db
+        ports:
+          - 5435:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:alpine
+        ports:
+          - 6375:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint code
+        run: pnpm run lint
+
+      - name: Run Prisma Migrations and Generate Client
+        env:
+          DATABASE_URL: postgresql://verifyhub_user:verifyhub_password@localhost:5435/verifyhub_db?schema=public
+        run: |
+          npx prisma migrate deploy
+          npx prisma generate
+
+      - name: Run tests (E2E)
+        env:
+          DATABASE_URL: postgresql://verifyhub_user:verifyhub_password@localhost:5435/verifyhub_db?schema=public
+          REDIS_URL: redis://localhost:6375/0
+          JWT_ACCESS_SECRET: ci_test_access_secret_token_value_at_least_32_characters_long
+          JWT_REFRESH_SECRET: ci_test_refresh_secret_token_value_at_least_32_characters_long
+          ENCRYPTION_MASTER_KEY: ci_test_encryption_master_key_exactly_64_characters_long_value_for_gcm
+          API_KEY_PEPPER: ci_test_api_key_pepper_exactly_64_characters_long_value_for_hashing
+          NODE_ENV: test
+        run: pnpm run test:e2e
+
+      - name: Build application
+        run: pnpm run build
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Sanity check Docker build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: verifyhub-api:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
