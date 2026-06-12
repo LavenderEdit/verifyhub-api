@@ -143,9 +143,10 @@ model Project {
   updatedAt      DateTime        @updatedAt
   apiKeys        ApiKey[]
   challenges     Challenge[]
-  quotaPolicies  QuotaPolicy[]
-  usageCounters  UsageCounter[]
-  auditLogs      AuditLog[]
+  quotaPolicies    QuotaPolicy[]
+  usageCounters    UsageCounter[]
+  auditLogs        AuditLog[]
+  webhookEndpoints WebhookEndpoint[]
 
   @@map("projects")
 }
@@ -340,4 +341,36 @@ model UsageCounter {
 
   @@unique([workspaceId, projectId, month, year])
   @@map("usage_counters")
+}
+
+model WebhookEndpoint {
+  id          String            @id @default(uuid())
+  projectId   String
+  project     Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  url         String
+  secret      String
+  enabled     Boolean           @default(true)
+  events      String[]          @default([])
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  deliveries  WebhookDelivery[]
+
+  @@map("webhook_endpoints")
+}
+
+model WebhookDelivery {
+  id          String          @id @default(uuid())
+  endpointId  String
+  endpoint    WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  event       String
+  payload     Json
+  status      WebhookStatus   @default(PENDING)
+  statusCode  Int?
+  response    String?
+  attempt     Int             @default(1)
+  nextAttempt DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@map("webhook_deliveries")
 }
