@@ -7,7 +7,12 @@ import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import { GetUser } from '../auth/decorators/get-user.decorator.js';
 import { Role } from '@prisma/client';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 
 @ApiTags('Workspaces & Projects')
 @Controller('workspaces')
@@ -27,7 +32,9 @@ export class WorkspaceController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'List workspaces the authenticated user belongs to' })
+  @ApiOperation({
+    summary: 'List workspaces the authenticated user belongs to',
+  })
   @ApiResponse({ status: 200, description: 'List of workspaces returned' })
   async listWorkspaces(@GetUser('id') userId: string) {
     return this.workspaceService.listWorkspaces(userId);
@@ -44,7 +51,11 @@ export class WorkspaceController {
     @Param('id') workspaceId: string,
     @Body() createProjectDto: CreateProjectDto,
   ) {
-    return this.workspaceService.createProject(userId, workspaceId, createProjectDto);
+    return this.workspaceService.createProject(
+      userId,
+      workspaceId,
+      createProjectDto,
+    );
   }
 
   @Get(':id/projects')
