@@ -1,4 +1,15 @@
-import { Controller, Post, Body, Get, UseGuards, Req, Res, UnauthorizedException, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  UseGuards,
+  Req,
+  Res,
+  UnauthorizedException,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { AuthService } from './auth.service.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
@@ -6,7 +17,12 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
 import { GetUser } from './decorators/get-user.decorator.js';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { ConfigService } from '@nestjs/config';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { User } from '@prisma/client';
 
 @ApiTags('Authentication')
