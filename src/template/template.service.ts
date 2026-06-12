@@ -1,6 +1,14 @@
-import { Injectable, NotFoundException, ConflictException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  Logger,
+} from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service.js';
-import { CreateTemplateDto, UpdateTemplateDto } from './dto/create-template.dto.js';
+import {
+  CreateTemplateDto,
+  UpdateTemplateDto,
+} from './dto/create-template.dto.js';
 import DOMPurify from 'isomorphic-dompurify';
 
 @Injectable()
@@ -21,11 +29,15 @@ export class TemplateService {
     });
 
     if (existing) {
-      throw new ConflictException('Ya existe una plantilla con ese nombre en este workspace.');
+      throw new ConflictException(
+        'Ya existe una plantilla con ese nombre en este workspace.',
+      );
     }
 
     // 2. Sanitize HTML body if provided
-    const sanitizedHtml = dto.bodyHtml ? DOMPurify.sanitize(dto.bodyHtml) : null;
+    const sanitizedHtml = dto.bodyHtml
+      ? DOMPurify.sanitize(dto.bodyHtml)
+      : null;
 
     // 3. Create template and initial version (v1) in transaction
     const template = await this.prisma.$transaction(async (tx) => {
@@ -52,7 +64,9 @@ export class TemplateService {
       return tmpl;
     });
 
-    this.logger.log(`Template "${template.name}" (v1) created by user ${userId}`);
+    this.logger.log(
+      `Template "${template.name}" (v1) created by user ${userId}`,
+    );
     return this.findOne(workspaceId, template.id);
   }
 
@@ -84,7 +98,12 @@ export class TemplateService {
     return template;
   }
 
-  async update(workspaceId: string, userId: string, id: string, dto: UpdateTemplateDto) {
+  async update(
+    workspaceId: string,
+    userId: string,
+    id: string,
+    dto: UpdateTemplateDto,
+  ) {
     const template = await this.prisma.template.findFirst({
       where: { id, workspaceId },
       include: {
@@ -98,15 +117,18 @@ export class TemplateService {
       throw new NotFoundException('Plantilla no encontrada.');
     }
 
-    const currentVersion = template.versions.find(v => v.isCurrent);
+    const currentVersion = template.versions.find((v) => v.isCurrent);
     if (!currentVersion) {
       throw new Error('No current active version found for this template.');
     }
 
     const nextVersionNumber = template.versions[0].versionNumber + 1;
-    const sanitizedHtml = dto.bodyHtml !== undefined 
-      ? (dto.bodyHtml ? DOMPurify.sanitize(dto.bodyHtml) : null) 
-      : currentVersion.bodyHtml;
+    const sanitizedHtml =
+      dto.bodyHtml !== undefined
+        ? dto.bodyHtml
+          ? DOMPurify.sanitize(dto.bodyHtml)
+          : null
+        : currentVersion.bodyHtml;
 
     await this.prisma.$transaction(async (tx) => {
       // Deactivate current active version
@@ -120,20 +142,29 @@ export class TemplateService {
         data: {
           templateId: id,
           versionNumber: nextVersionNumber,
-          subject: dto.subject !== undefined ? dto.subject : currentVersion.subject,
+          subject:
+            dto.subject !== undefined ? dto.subject : currentVersion.subject,
           bodyHtml: sanitizedHtml,
-          bodyText: dto.bodyText !== undefined ? dto.bodyText : currentVersion.bodyText,
+          bodyText:
+            dto.bodyText !== undefined ? dto.bodyText : currentVersion.bodyText,
           isCurrent: true,
           createdById: userId,
         },
       });
     });
 
-    this.logger.log(`Template "${template.name}" updated to v${nextVersionNumber} by user ${userId}`);
+    this.logger.log(
+      `Template "${template.name}" updated to v${nextVersionNumber} by user ${userId}`,
+    );
     return this.findOne(workspaceId, id);
   }
 
-  async rollback(workspaceId: string, userId: string, id: string, versionNumber: number) {
+  async rollback(
+    workspaceId: string,
+    userId: string,
+    id: string,
+    versionNumber: number,
+  ) {
     const template = await this.prisma.template.findFirst({
       where: { id, workspaceId },
       include: { versions: true },
@@ -143,9 +174,13 @@ export class TemplateService {
       throw new NotFoundException('Plantilla no encontrada.');
     }
 
-    const targetVersion = template.versions.find(v => v.versionNumber === versionNumber);
+    const targetVersion = template.versions.find(
+      (v) => v.versionNumber === versionNumber,
+    );
     if (!targetVersion) {
-      throw new NotFoundException(`La versión ${versionNumber} de la plantilla no existe.`);
+      throw new NotFoundException(
+        `La versión ${versionNumber} de la plantilla no existe.`,
+      );
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -160,7 +195,9 @@ export class TemplateService {
       });
     });
 
-    this.logger.log(`Template "${template.name}" rolled back to version ${versionNumber} by user ${userId}`);
+    this.logger.log(
+      `Template "${template.name}" rolled back to version ${versionNumber} by user ${userId}`,
+    );
     return this.findOne(workspaceId, id);
   }
 
@@ -181,7 +218,11 @@ export class TemplateService {
     return { success: true };
   }
 
-  async preview(workspaceId: string, id: string, variables?: Record<string, any>) {
+  async preview(
+    workspaceId: string,
+    id: string,
+    variables?: Record<string, any>,
+  ) {
     const template = await this.prisma.template.findFirst({
       where: { id, workspaceId },
       include: {
@@ -207,11 +248,11 @@ export class TemplateService {
       ...variables,
     };
 
-    const previewSubject = currentVersion.subject 
-      ? this.renderVariables(currentVersion.subject, mockVars) 
+    const previewSubject = currentVersion.subject
+      ? this.renderVariables(currentVersion.subject, mockVars)
       : null;
-    const previewHtml = currentVersion.bodyHtml 
-      ? this.renderVariables(currentVersion.bodyHtml, mockVars) 
+    const previewHtml = currentVersion.bodyHtml
+      ? this.renderVariables(currentVersion.bodyHtml, mockVars)
       : null;
     const previewText = this.renderVariables(currentVersion.bodyText, mockVars);
 
@@ -228,9 +269,18 @@ export class TemplateService {
 
   renderVariables(content: string, variables: Record<string, any>): string {
     let rendered = content;
-    const allowedVars = ['code', 'appName', 'expiresInMinutes', 'purpose', 'actionUrl', 'tenantName', 'supportEmail'];
+    const allowedVars = [
+      'code',
+      'appName',
+      'expiresInMinutes',
+      'purpose',
+      'actionUrl',
+      'tenantName',
+      'supportEmail',
+    ];
     for (const key of allowedVars) {
-      const value = variables[key] !== undefined ? String(variables[key]) : `{{${key}}}`;
+      const value =
+        variables[key] !== undefined ? String(variables[key]) : `{{${key}}}`;
       rendered = rendered.replace(new RegExp(`{{${key}}}`, 'g'), value);
     }
     return rendered;

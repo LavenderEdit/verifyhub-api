@@ -6,6 +6,7 @@ import { SecretsService } from '../../common/security/secrets.service.js';
 import { TemplateService } from '../../template/template.service.js';
 import { createTransport } from 'nodemailer';
 import { WhatsappClientRegistry } from '../../connector/whatsapp/whatsapp-client.registry.js';
+import { WebhookEndpointService } from '../../webhook/webhook-endpoint.service.js';
 
 @Processor('delivery_queue')
 @Injectable()
@@ -17,6 +18,7 @@ export class EmailProcessor extends WorkerHost {
     private readonly secretsService: SecretsService,
     private readonly templateService: TemplateService,
     private readonly registry: WhatsappClientRegistry,
+    private readonly webhookService: WebhookEndpointService,
   ) {
     super();
   }
@@ -27,7 +29,7 @@ export class EmailProcessor extends WorkerHost {
     }
 
     const { challengeId, plainCode, templateName } = job.data;
-    
+
     // 1. Fetch Challenge Details
     const challenge = await this.prisma.challenge.findUnique({
       where: { id: challengeId },
@@ -39,17 +41,29 @@ export class EmailProcessor extends WorkerHost {
       return;
     }
 
-    const destination = this.secretsService.decrypt(challenge.destinationEncrypted);
+    const destination = this.secretsService.decrypt(
+      challenge.destinationEncrypted,
+    );
 
     // 2. Route by Channel
     if (challenge.channel === 'EMAIL') {
       await this.deliverEmail(challenge, plainCode, destination, templateName);
     } else if (challenge.channel === 'WHATSAPP') {
-      await this.deliverWhatsApp(challenge, plainCode, destination, templateName);
+      await this.deliverWhatsApp(
+        challenge,
+        plainCode,
+        destination,
+        templateName,
+      );
     }
   }
 
-  private async deliverEmail(challenge: any, plainCode: string, destination: string, templateName?: string) {
+  private async deliverEmail(
+    challenge: any,
+    plainCode: string,
+    destination: string,
+    templateName?: string,
+  ) {
     // 1. Find enabled SMTP connector for workspace
     const connector = await this.prisma.smtpConnector.findFirst({
       where: { workspaceId: challenge.workspaceId, enabled: true },
@@ -62,9 +76,18 @@ export class EmailProcessor extends WorkerHost {
     }
 
     // 2. Fetch template
-    let subject = 'Código de Verificación';
-    let bodyHtml: string | null = `<p>Tu código de verificación es: <b>${plainCode}</b></p>`;
-    let bodyText = `Tu código de verificación es: ${plainCode}`;
+    const locale =
+      challenge.metadata && challenge.metadata.locale === 'en' ? 'en' : 'es';
+    let subject =
+      locale === 'en' ? 'Verification Code' : 'Código de Verificación';
+    let bodyHtml: string | null =
+      locale === 'en'
+        ? `<p>Your verification code is: <b>${plainCode}</b></p>`
+        : `<p>Tu código de verificación es: <b>${plainCode}</b></p>`;
+    let bodyText =
+      locale === 'en'
+        ? `Your verification code is: ${plainCode}`
+        : `Tu código de verificación es: ${plainCode}`;
 
     if (templateName) {
       const template = await this.prisma.template.findFirst({
@@ -82,9 +105,10 @@ export class EmailProcessor extends WorkerHost {
 
       if (template && template.versions.length > 0) {
         const activeVer = template.versions[0];
-        
+
         // Calculate expiration minutes
-        const diffMs = challenge.expiresAt.getTime() - challenge.createdAt.getTime();
+        const diffMs =
+          challenge.expiresAt.getTime() - challenge.createdAt.getTime();
         const expiresInMinutes = Math.round(diffMs / 60000);
 
         const variables = {
@@ -92,23 +116,33 @@ export class EmailProcessor extends WorkerHost {
           appName: challenge.project.name,
           expiresInMinutes,
           purpose: challenge.purpose,
-          actionUrl: challenge.metadata && (challenge.metadata as any).actionUrl,
-          tenantName: challenge.metadata && (challenge.metadata as any).tenantName,
-          supportEmail: challenge.metadata && (challenge.metadata as any).supportEmail,
+          actionUrl: challenge.metadata && challenge.metadata.actionUrl,
+          tenantName: challenge.metadata && challenge.metadata.tenantName,
+          supportEmail: challenge.metadata && challenge.metadata.supportEmail,
         };
 
-        subject = this.templateService.renderVariables(activeVer.subject || 'Código de Verificación', variables);
-        bodyHtml = activeVer.bodyHtml 
-          ? this.templateService.renderVariables(activeVer.bodyHtml, variables) 
+        subject = this.templateService.renderVariables(
+          activeVer.subject || 'Código de Verificación',
+          variables,
+        );
+        bodyHtml = activeVer.bodyHtml
+          ? this.templateService.renderVariables(activeVer.bodyHtml, variables)
           : null;
-        bodyText = this.templateService.renderVariables(activeVer.bodyText, variables);
+        bodyText = this.templateService.renderVariables(
+          activeVer.bodyText,
+          variables,
+        );
       } else {
-        this.logger.warn(`Template "${templateName}" not found. Falling back to default layout.`);
+        this.logger.warn(
+          `Template "${templateName}" not found. Falling back to default layout.`,
+        );
       }
     }
 
     // 3. Decrypt SMTP password
-    const decryptedPassword = this.secretsService.decrypt(connector.passwordEncrypted);
+    const decryptedPassword = this.secretsService.decrypt(
+      connector.passwordEncrypted,
+    );
 
     // 4. Initialize Nodemailer Transporter
     const transporter = createTransport({
@@ -149,7 +183,21 @@ export class EmailProcessor extends WorkerHost {
         }),
       ]);
 
-      this.logger.log(`Email verification sent successfully to ${destination} for challenge ${challenge.id}`);
+      await this.webhookService.triggerEvent(
+        challenge.projectId,
+        'challenge.sent',
+        {
+          challengeId: challenge.id,
+          purpose: challenge.purpose,
+          channel: challenge.channel,
+          destinationHash: challenge.destinationHash,
+          metadata: challenge.metadata,
+        },
+      );
+
+      this.logger.log(
+        `Email verification sent successfully to ${destination} for challenge ${challenge.id}`,
+      );
     } catch (error: any) {
       const errorMsg = error.message || 'SMTP transmission error';
       await this.recordDeliveryFailure(challenge.id, connector.id, errorMsg);
@@ -157,18 +205,29 @@ export class EmailProcessor extends WorkerHost {
     }
   }
 
-  private async deliverWhatsApp(challenge: any, plainCode: string, destination: string, templateName?: string) {
+  private async deliverWhatsApp(
+    challenge: any,
+    plainCode: string,
+    destination: string,
+    templateName?: string,
+  ) {
     const connector = await this.prisma.whatsappConnector.findFirst({
       where: { workspaceId: challenge.workspaceId, status: 'READY' },
     });
 
     if (!connector) {
-      const errorMsg = 'No active/ready WhatsApp connector found for workspace.';
+      const errorMsg =
+        'No active/ready WhatsApp connector found for workspace.';
       await this.recordDeliveryFailure(challenge.id, null, errorMsg);
       throw new Error(errorMsg);
     }
 
-    let bodyText = `Tu código de verificación es: ${plainCode}`;
+    const locale =
+      challenge.metadata && challenge.metadata.locale === 'en' ? 'en' : 'es';
+    let bodyText =
+      locale === 'en'
+        ? `Your verification code is: ${plainCode}`
+        : `Tu código de verificación es: ${plainCode}`;
 
     if (templateName) {
       const template = await this.prisma.template.findFirst({
@@ -186,9 +245,10 @@ export class EmailProcessor extends WorkerHost {
 
       if (template && template.versions.length > 0) {
         const activeVer = template.versions[0];
-        
+
         // Calculate expiration minutes
-        const diffMs = challenge.expiresAt.getTime() - challenge.createdAt.getTime();
+        const diffMs =
+          challenge.expiresAt.getTime() - challenge.createdAt.getTime();
         const expiresInMinutes = Math.round(diffMs / 60000);
 
         const variables = {
@@ -196,14 +256,19 @@ export class EmailProcessor extends WorkerHost {
           appName: challenge.project.name,
           expiresInMinutes,
           purpose: challenge.purpose,
-          actionUrl: challenge.metadata && (challenge.metadata as any).actionUrl,
-          tenantName: challenge.metadata && (challenge.metadata as any).tenantName,
-          supportEmail: challenge.metadata && (challenge.metadata as any).supportEmail,
+          actionUrl: challenge.metadata && challenge.metadata.actionUrl,
+          tenantName: challenge.metadata && challenge.metadata.tenantName,
+          supportEmail: challenge.metadata && challenge.metadata.supportEmail,
         };
 
-        bodyText = this.templateService.renderVariables(activeVer.bodyText, variables);
+        bodyText = this.templateService.renderVariables(
+          activeVer.bodyText,
+          variables,
+        );
       } else {
-        this.logger.warn(`WhatsApp template "${templateName}" not found. Falling back to default layout.`);
+        this.logger.warn(
+          `WhatsApp template "${templateName}" not found. Falling back to default layout.`,
+        );
       }
     }
 
@@ -217,6 +282,7 @@ export class EmailProcessor extends WorkerHost {
     try {
       await entry.provider.sendMessage(destination, bodyText);
 
+      // Record success
       await this.prisma.$transaction([
         this.prisma.challenge.update({
           where: { id: challenge.id },
@@ -233,7 +299,21 @@ export class EmailProcessor extends WorkerHost {
         }),
       ]);
 
-      this.logger.log(`WhatsApp OTP sent successfully to ${destination} for challenge ${challenge.id}`);
+      await this.webhookService.triggerEvent(
+        challenge.projectId,
+        'challenge.sent',
+        {
+          challengeId: challenge.id,
+          purpose: challenge.purpose,
+          channel: challenge.channel,
+          destinationHash: challenge.destinationHash,
+          metadata: challenge.metadata,
+        },
+      );
+
+      this.logger.log(
+        `WhatsApp OTP sent successfully to ${destination} for challenge ${challenge.id}`,
+      );
     } catch (error: any) {
       const errorMsg = error.message || 'WhatsApp transmission error';
       await this.recordDeliveryFailure(challenge.id, connector.id, errorMsg);
@@ -241,8 +321,16 @@ export class EmailProcessor extends WorkerHost {
     }
   }
 
-  private async recordDeliveryFailure(challengeId: string, connectorId: string | null, errorMsg: string) {
+  private async recordDeliveryFailure(
+    challengeId: string,
+    connectorId: string | null,
+    errorMsg: string,
+  ) {
     try {
+      const challenge = await this.prisma.challenge.findUnique({
+        where: { id: challengeId },
+      });
+
       await this.prisma.$transaction([
         this.prisma.challenge.update({
           where: { id: challengeId },
@@ -256,8 +344,25 @@ export class EmailProcessor extends WorkerHost {
           },
         }),
       ]);
+
+      if (challenge) {
+        await this.webhookService.triggerEvent(
+          challenge.projectId,
+          'challenge.failed',
+          {
+            challengeId: challenge.id,
+            purpose: challenge.purpose,
+            channel: challenge.channel,
+            destinationHash: challenge.destinationHash,
+            metadata: challenge.metadata,
+            reason: errorMsg,
+          },
+        );
+      }
     } catch (dbErr: any) {
-      this.logger.error(`Failed to record database delivery failure status: ${dbErr.message}`);
+      this.logger.error(
+        `Failed to record database delivery failure status: ${dbErr.message}`,
+      );
     }
   }
 }

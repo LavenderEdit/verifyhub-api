@@ -1,12 +1,33 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { TemplateService } from './template.service.js';
-import { CreateTemplateDto, UpdateTemplateDto, PreviewTemplateDto } from './dto/create-template.dto.js';
+import {
+  CreateTemplateDto,
+  UpdateTemplateDto,
+  PreviewTemplateDto,
+} from './dto/create-template.dto.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import { GetUser } from '../auth/decorators/get-user.decorator.js';
 import { Role } from '@prisma/client';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 
 @ApiTags('Templates')
 @Controller('templates')
@@ -56,7 +77,12 @@ export class TemplateController {
     @Param('id') id: string,
     @Body() updateTemplateDto: UpdateTemplateDto,
   ) {
-    return this.templateService.update(workspaceId, userId, id, updateTemplateDto);
+    return this.templateService.update(
+      workspaceId,
+      userId,
+      id,
+      updateTemplateDto,
+    );
   }
 
   @Delete(':id')
@@ -73,14 +99,20 @@ export class TemplateController {
   @Post(':id/preview')
   @HttpCode(HttpStatus.OK)
   @Roles(Role.OWNER, Role.ADMIN, Role.DEVELOPER, Role.VIEWER)
-  @ApiOperation({ summary: 'Preview current active version of a template with mock values' })
+  @ApiOperation({
+    summary: 'Preview current active version of a template with mock values',
+  })
   @ApiResponse({ status: 200, description: 'Template preview rendered' })
   async preview(
     @Query('workspaceId') workspaceId: string,
     @Param('id') id: string,
     @Body() previewTemplateDto: PreviewTemplateDto,
   ) {
-    return this.templateService.preview(workspaceId, id, previewTemplateDto.variables);
+    return this.templateService.preview(
+      workspaceId,
+      id,
+      previewTemplateDto.variables,
+    );
   }
 
   @Post(':id/rollback/:version')
@@ -94,6 +126,11 @@ export class TemplateController {
     @Param('id') id: string,
     @Param('version') versionNumber: string,
   ) {
-    return this.templateService.rollback(workspaceId, userId, id, parseInt(versionNumber, 10));
+    return this.templateService.rollback(
+      workspaceId,
+      userId,
+      id,
+      parseInt(versionNumber, 10),
+    );
   }
 }
