@@ -1,11 +1,31 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { SmtpConnectorService } from './smtp-connector.service.js';
-import { CreateSmtpConnectorDto, UpdateSmtpConnectorDto } from './dto/create-smtp-connector.dto.js';
+import {
+  CreateSmtpConnectorDto,
+  UpdateSmtpConnectorDto,
+} from './dto/create-smtp-connector.dto.js';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../../auth/guards/roles.guard.js';
 import { Roles } from '../../auth/decorators/roles.decorator.js';
 import { Role } from '@prisma/client';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 
 @ApiTags('Connectors - SMTP')
 @Controller('connectors/smtp')
@@ -17,7 +37,10 @@ export class SmtpConnectorController {
   @Post()
   @Roles(Role.OWNER, Role.ADMIN)
   @ApiOperation({ summary: 'Create a new SMTP connector for a workspace' })
-  @ApiResponse({ status: 201, description: 'SMTP connector created successfully' })
+  @ApiResponse({
+    status: 201,
+    description: 'SMTP connector created successfully',
+  })
   async create(
     @Query('workspaceId') workspaceId: string,
     @Body() createSmtpConnectorDto: CreateSmtpConnectorDto,
@@ -70,7 +93,9 @@ export class SmtpConnectorController {
   @Post(':id/test')
   @HttpCode(HttpStatus.OK)
   @Roles(Role.OWNER, Role.ADMIN)
-  @ApiOperation({ summary: 'Test credentials and connection of an SMTP connector' })
+  @ApiOperation({
+    summary: 'Test credentials and connection of an SMTP connector',
+  })
   @ApiResponse({ status: 200, description: 'Connection status returned' })
   async testConnection(
     @Query('workspaceId') workspaceId: string,

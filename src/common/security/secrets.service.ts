@@ -1,6 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createCipheriv, createDecipheriv, randomBytes, createHash } from 'crypto';
+import {
+  createCipheriv,
+  createDecipheriv,
+  randomBytes,
+  createHash,
+} from 'crypto';
 
 @Injectable()
 export class SecretsService {
@@ -10,7 +15,9 @@ export class SecretsService {
   constructor(private readonly configService: ConfigService) {
     const rawKey = this.configService.get<string>('ENCRYPTION_MASTER_KEY');
     if (!rawKey) {
-      throw new Error('ENCRYPTION_MASTER_KEY is not defined in the environment.');
+      throw new Error(
+        'ENCRYPTION_MASTER_KEY is not defined in the environment.',
+      );
     }
 
     // Always derive a 32-byte (256-bit) key regardless of the key length in env
@@ -21,10 +28,10 @@ export class SecretsService {
     try {
       const iv = randomBytes(12); // 12 bytes IV is standard for GCM
       const cipher = createCipheriv('aes-256-gcm', this.encryptionKey, iv);
-      
+
       let encrypted = cipher.update(text, 'utf8', 'hex');
       encrypted += cipher.final('hex');
-      
+
       const tag = cipher.getAuthTag();
 
       // Store as iv:tag:encryptedText

@@ -1,7 +1,10 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { SecretsService } from '../../common/security/secrets.service.js';
-import { CreateSmtpConnectorDto, UpdateSmtpConnectorDto } from './dto/create-smtp-connector.dto.js';
+import {
+  CreateSmtpConnectorDto,
+  UpdateSmtpConnectorDto,
+} from './dto/create-smtp-connector.dto.js';
 import { createTransport } from 'nodemailer';
 
 @Injectable()
@@ -40,7 +43,7 @@ export class SmtpConnectorService {
     const connectors = await this.prisma.smtpConnector.findMany({
       where: { workspaceId },
     });
-    return connectors.map(c => this.sanitizeConnector(c));
+    return connectors.map((c) => this.sanitizeConnector(c));
   }
 
   async findOne(workspaceId: string, id: string) {
@@ -82,7 +85,9 @@ export class SmtpConnectorService {
       data: updatedData,
     });
 
-    this.logger.log(`SMTP Connector ${id} updated for workspace ${workspaceId}`);
+    this.logger.log(
+      `SMTP Connector ${id} updated for workspace ${workspaceId}`,
+    );
     return this.sanitizeConnector(updated);
   }
 
@@ -98,7 +103,9 @@ export class SmtpConnectorService {
       where: { id },
     });
 
-    this.logger.log(`SMTP Connector ${id} deleted for workspace ${workspaceId}`);
+    this.logger.log(
+      `SMTP Connector ${id} deleted for workspace ${workspaceId}`,
+    );
     return { success: true };
   }
 
@@ -110,7 +117,9 @@ export class SmtpConnectorService {
       throw new NotFoundException('Conector SMTP no encontrado.');
     }
 
-    const decryptedPassword = this.secretsService.decrypt(connector.passwordEncrypted);
+    const decryptedPassword = this.secretsService.decrypt(
+      connector.passwordEncrypted,
+    );
 
     // Create a transporter just for verification
     const transporter = createTransport({
@@ -125,7 +134,7 @@ export class SmtpConnectorService {
 
     try {
       await transporter.verify();
-      
+
       const updated = await this.prisma.smtpConnector.update({
         where: { id },
         data: {
@@ -134,15 +143,18 @@ export class SmtpConnectorService {
         },
       });
 
-      this.logger.log(`SMTP connection verified successfully for connector ${id}`);
+      this.logger.log(
+        `SMTP connection verified successfully for connector ${id}`,
+      );
       return {
         success: true,
         message: 'Conexión SMTP exitosa.',
         testedAt: updated.testedAt,
       };
     } catch (error: any) {
-      const errorMessage = error.message || 'Error de autenticación o de conexión.';
-      
+      const errorMessage =
+        error.message || 'Error de autenticación o de conexión.';
+
       await this.prisma.smtpConnector.update({
         where: { id },
         data: {
@@ -150,7 +162,9 @@ export class SmtpConnectorService {
         },
       });
 
-      this.logger.warn(`SMTP connection failed for connector ${id}: ${errorMessage}`);
+      this.logger.warn(
+        `SMTP connection failed for connector ${id}: ${errorMessage}`,
+      );
       return {
         success: false,
         message: `Fallo de conexión: ${errorMessage}`,
