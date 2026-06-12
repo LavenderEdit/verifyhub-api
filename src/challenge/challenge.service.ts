@@ -331,7 +331,7 @@ export class ChallengeService {
   }
 
   async resendChallenge(id: string, projectId: string) {
-    const challenge = await this.prisma.challenge.findFirst({
+    const challenge: any = await this.prisma.challenge.findFirst({
       where: { id, projectId },
     });
 
@@ -381,13 +381,12 @@ export class ChallengeService {
     });
 
     // Enqueue new delivery job
-    const challengeMetadata = challenge.metadata as any;
     await this.deliveryQueue.add(
       'send_otp',
       {
         challengeId: id,
         plainCode,
-        templateName: challengeMetadata?.templateName, // or fallback
+        templateName: challenge.metadata?.templateName, // or fallback
       },
       {
         attempts: 3,

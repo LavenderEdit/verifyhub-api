@@ -39,7 +39,7 @@ export class VerifyLinkController {
     }
 
     try {
-      const challenge = await this.prisma.challenge.findUnique({
+      const challenge: any = await this.prisma.challenge.findUnique({
         where: { id },
       });
 
@@ -52,8 +52,7 @@ export class VerifyLinkController {
       }
 
       if (challenge.status === 'VERIFIED') {
-        const challengeMetadata = challenge.metadata as any;
-        const redirectUrl = challengeMetadata?.actionUrl;
+        const redirectUrl = challenge.metadata?.actionUrl;
         return this.renderPage(res, {
           success: true,
           title: 'Ya Verificado',
@@ -108,8 +107,7 @@ export class VerifyLinkController {
         },
       );
 
-      const challengeMetadata = challenge.metadata as any;
-      const redirectUrl = challengeMetadata?.actionUrl;
+      const redirectUrl = challenge.metadata?.actionUrl;
 
       return this.renderPage(res, {
         success: true,
