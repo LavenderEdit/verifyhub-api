@@ -1,4 +1,11 @@
-import { CanActivate, ExecutionContext, Injectable, Inject, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  Inject,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import Redis from 'ioredis';
 import { ConfigService } from '@nestjs/config';
@@ -13,18 +20,24 @@ export class RateLimitGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const rateLimit = this.reflector.getAllAndOverride<RateLimitOptions>(RATE_LIMIT_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const rateLimit = this.reflector.getAllAndOverride<RateLimitOptions>(
+      RATE_LIMIT_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
-    const ttl = rateLimit?.ttl ?? this.configService.get<number>('RATE_LIMIT_DEFAULT_TTL') ?? 60;
-    const limit = rateLimit?.limit ?? this.configService.get<number>('RATE_LIMIT_DEFAULT_LIMIT') ?? 100;
+    const ttl =
+      rateLimit?.ttl ??
+      this.configService.get<number>('RATE_LIMIT_DEFAULT_TTL') ??
+      60;
+    const limit =
+      rateLimit?.limit ??
+      this.configService.get<number>('RATE_LIMIT_DEFAULT_LIMIT') ??
+      100;
     const prefix = rateLimit?.keyPrefix ?? 'global';
 
     const request = context.switchToHttp().getRequest();
     const ip = request.ip || 'unknown';
-    
+
     // Resolve identifier key
     let identifier = ip;
     if (request.apiKey) {
@@ -37,7 +50,7 @@ export class RateLimitGuard implements CanActivate {
 
     // Redis atomic increment
     const current = await this.redis.incr(key);
-    
+
     if (current === 1) {
       await this.redis.expire(key, ttl);
     }
@@ -46,7 +59,8 @@ export class RateLimitGuard implements CanActivate {
       throw new HttpException(
         {
           statusCode: HttpStatus.TOO_MANY_REQUESTS,
-          message: 'Se ha superado el límite de peticiones. Por favor, inténtelo de nuevo más tarde.',
+          message:
+            'Se ha superado el límite de peticiones. Por favor, inténtelo de nuevo más tarde.',
           error: 'Too Many Requests',
         },
         HttpStatus.TOO_MANY_REQUESTS,
