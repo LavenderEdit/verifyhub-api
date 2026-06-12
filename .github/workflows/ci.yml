@@ -71,6 +71,7 @@ jobs:
           JWT_REFRESH_SECRET: ci_test_refresh_secret_token_value_at_least_32_characters_long
           ENCRYPTION_MASTER_KEY: ci_test_encryption_master_key_exactly_64_characters_long_value_for_gcm
           API_KEY_PEPPER: ci_test_api_key_pepper_exactly_64_characters_long_value_for_hashing
+          WEBHOOK_SIGNING_SECRET: ci_test_webhook_signing_secret_value_at_least_32_characters_long
           NODE_ENV: test
         run: pnpm run test:e2e
 
