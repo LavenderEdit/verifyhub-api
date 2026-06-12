@@ -19,6 +19,7 @@ async function bootstrap() {
 
   // 2. Set Pino as the main logger
   app.useLogger(app.get(PinoLogger));
+  app.enableShutdownHooks();
 
   const configService = app.get(ConfigService);
   const logger = new Logger('Bootstrap');
@@ -82,6 +83,7 @@ async function bootstrap() {
     // Bootstrap only application context
     const workerApp = await NestFactory.createApplicationContext(AppModule);
     workerApp.useLogger(workerApp.get(PinoLogger));
+    workerApp.enableShutdownHooks();
     logger.log('VerifyHub Worker bootstrapped successfully');
     
     // Maintain active loop for BullMQ/Redis connections
