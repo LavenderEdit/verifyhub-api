@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  Logger,
+} from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { ConfigService } from '@nestjs/config';
@@ -23,7 +28,11 @@ export class ApiKeyService {
       .digest('hex');
   }
 
-  async createApiKey(userId: string, projectId: string, createApiKeyDto: CreateApiKeyDto) {
+  async createApiKey(
+    userId: string,
+    projectId: string,
+    createApiKeyDto: CreateApiKeyDto,
+  ) {
     const project = await this.prisma.project.findUnique({
       where: { id: projectId },
       include: { workspace: true },
@@ -44,7 +53,9 @@ export class ApiKeyService {
         projectId,
         workspaceId: project.workspaceId,
         scopes: createApiKeyDto.scopes,
-        expiresAt: createApiKeyDto.expiresAt ? new Date(createApiKeyDto.expiresAt) : null,
+        expiresAt: createApiKeyDto.expiresAt
+          ? new Date(createApiKeyDto.expiresAt)
+          : null,
       },
     });
 
@@ -56,7 +67,9 @@ export class ApiKeyService {
       details: { name: apiKey.name, scopes: apiKey.scopes },
     });
 
-    this.logger.log(`API Key "${apiKey.name}" created for project ${projectId} by user ${userId}`);
+    this.logger.log(
+      `API Key "${apiKey.name}" created for project ${projectId} by user ${userId}`,
+    );
 
     // Return the plain key to the user (ONLY ONCE)
     return {
@@ -104,8 +117,15 @@ export class ApiKeyService {
       },
     });
 
-    if (!member || (member.role !== Role.OWNER && member.role !== Role.ADMIN && member.role !== Role.DEVELOPER)) {
-      throw new ForbiddenException('No tienes permisos en este workspace para revocar esta API Key.');
+    if (
+      !member ||
+      (member.role !== Role.OWNER &&
+        member.role !== Role.ADMIN &&
+        member.role !== Role.DEVELOPER)
+    ) {
+      throw new ForbiddenException(
+        'No tienes permisos en este workspace para revocar esta API Key.',
+      );
     }
 
     await this.prisma.apiKey.delete({
@@ -120,7 +140,9 @@ export class ApiKeyService {
       details: { name: apiKey.name },
     });
 
-    this.logger.log(`API Key "${apiKey.name}" revoked (deleted) by user ${userId}`);
+    this.logger.log(
+      `API Key "${apiKey.name}" revoked (deleted) by user ${userId}`,
+    );
     return { success: true };
   }
 

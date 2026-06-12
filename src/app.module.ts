@@ -16,6 +16,8 @@ import { WhatsappConnectorModule } from './connector/whatsapp/whatsapp-connector
 import { TemplateModule } from './template/template.module.js';
 import { ChallengeModule } from './challenge/challenge.module.js';
 import { DeliveryModule } from './delivery/delivery.module.js';
+import { WebhookModule } from './webhook/webhook.module.js';
+import { DashboardModule } from './dashboard/dashboard.module.js';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 
@@ -68,6 +70,8 @@ import { AppService } from './app.service.js';
     TemplateModule,
     ChallengeModule,
     DeliveryModule,
+    WebhookModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],

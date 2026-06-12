@@ -1,5 +1,8 @@
 import { NestFactory } from '@nestjs/core';
-import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
+import {
+  FastifyAdapter,
+  NestFastifyApplication,
+} from '@nestjs/platform-fastify';
 import { AppModule } from './app.module.js';
 import fastifyCookie from '@fastify/cookie';
 import { ValidationPipe, VersioningType, Logger } from '@nestjs/common';
@@ -14,7 +17,7 @@ async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter({ logger: false }),
-    { bufferLogs: true }
+    { bufferLogs: true },
   );
 
   // 2. Set Pino as the main logger
@@ -23,7 +26,7 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService);
   const logger = new Logger('Bootstrap');
-  
+
   // 3. Register fastify-cookie
   const refreshSecret = configService.get<string>('JWT_REFRESH_SECRET')!;
   await app.register(fastifyCookie, {
@@ -50,7 +53,9 @@ async function bootstrap() {
   // 6. Swagger /docs setup
   const swaggerConfig = new DocumentBuilder()
     .setTitle('VerifyHub API')
-    .setDescription('Centralized Multi-Tenant Verification API (Email SMTP & WhatsApp Web)')
+    .setDescription(
+      'Centralized Multi-Tenant Verification API (Email SMTP & WhatsApp Web)',
+    )
     .setVersion('1.0')
     .addBearerAuth({
       type: 'http',
@@ -79,13 +84,13 @@ async function bootstrap() {
   if (runMode === 'worker') {
     // Shutdown the HTTP listener part if starting as a worker process
     await app.close();
-    
+
     // Bootstrap only application context
     const workerApp = await NestFactory.createApplicationContext(AppModule);
     workerApp.useLogger(workerApp.get(PinoLogger));
     workerApp.enableShutdownHooks();
     logger.log('VerifyHub Worker bootstrapped successfully');
-    
+
     // Maintain active loop for BullMQ/Redis connections
     process.on('SIGTERM', async () => {
       logger.log('Worker SIGTERM received. Closing context...');
@@ -96,7 +101,9 @@ async function bootstrap() {
     // Boot up as API Server
     await app.listen(port, '0.0.0.0');
     logger.log(`VerifyHub API server running on: http://localhost:${port}/v1`);
-    logger.log(`VerifyHub Swagger docs available at: http://localhost:${port}/docs`);
+    logger.log(
+      `VerifyHub Swagger docs available at: http://localhost:${port}/docs`,
+    );
   }
 }
 
