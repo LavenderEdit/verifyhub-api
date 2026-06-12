@@ -1,0 +1,58 @@
+# Dependency directories
+node_modules/
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# Build outputs
+dist/
+build/
+coverage/
+.temp/
+.tmp/
+
+# Version control
+.git/
+.github/
+.gitignore
+.dockerignore
+
+# Docker configs
+Dockerfile
+docker-compose.yml
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs and runtime data
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# VerifyHub local sessions & credentials (CRITICAL: Do not bake sessions into the image)
+wwebjs_sessions/
+wwebjs_auth/
+
+# IDE / Editor folders
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Tests, scratch scripts and docs
+test/
+docs/
+scratch/
+.gemini/
+README.md
