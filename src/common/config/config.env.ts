@@ -1,5 +1,13 @@
 import { plainToInstance } from 'class-transformer';
-import { IsEnum, IsNumber, IsString, IsUrl, IsBoolean, validateSync, IsOptional } from 'class-validator';
+import {
+  IsEnum,
+  IsNumber,
+  IsString,
+  IsUrl,
+  IsBoolean,
+  validateSync,
+  IsOptional,
+} from 'class-validator';
 
 export enum Environment {
   Development = 'development',
@@ -77,33 +85,49 @@ export class EnvironmentVariables {
 export function validate(config: Record<string, any>) {
   // Convert numerical string properties to numbers and boolean string properties to booleans
   const convertedConfig = { ...config };
-  
+
   if (convertedConfig.PORT) {
     convertedConfig.PORT = Number(convertedConfig.PORT);
   }
   if (convertedConfig.COOKIE_SECURE) {
-    convertedConfig.COOKIE_SECURE = convertedConfig.COOKIE_SECURE === 'true' || convertedConfig.COOKIE_SECURE === true;
+    convertedConfig.COOKIE_SECURE =
+      convertedConfig.COOKIE_SECURE === 'true' ||
+      convertedConfig.COOKIE_SECURE === true;
   } else {
     convertedConfig.COOKIE_SECURE = false;
   }
   if (convertedConfig.RATE_LIMIT_DEFAULT_TTL) {
-    convertedConfig.RATE_LIMIT_DEFAULT_TTL = Number(convertedConfig.RATE_LIMIT_DEFAULT_TTL);
+    convertedConfig.RATE_LIMIT_DEFAULT_TTL = Number(
+      convertedConfig.RATE_LIMIT_DEFAULT_TTL,
+    );
   }
   if (convertedConfig.RATE_LIMIT_DEFAULT_LIMIT) {
-    convertedConfig.RATE_LIMIT_DEFAULT_LIMIT = Number(convertedConfig.RATE_LIMIT_DEFAULT_LIMIT);
+    convertedConfig.RATE_LIMIT_DEFAULT_LIMIT = Number(
+      convertedConfig.RATE_LIMIT_DEFAULT_LIMIT,
+    );
   }
   if (convertedConfig.OTP_DEFAULT_EXPIRATION_MINUTES) {
-    convertedConfig.OTP_DEFAULT_EXPIRATION_MINUTES = Number(convertedConfig.OTP_DEFAULT_EXPIRATION_MINUTES);
+    convertedConfig.OTP_DEFAULT_EXPIRATION_MINUTES = Number(
+      convertedConfig.OTP_DEFAULT_EXPIRATION_MINUTES,
+    );
   }
   if (convertedConfig.OTP_DEFAULT_LENGTH) {
-    convertedConfig.OTP_DEFAULT_LENGTH = Number(convertedConfig.OTP_DEFAULT_LENGTH);
+    convertedConfig.OTP_DEFAULT_LENGTH = Number(
+      convertedConfig.OTP_DEFAULT_LENGTH,
+    );
   }
 
-  const validatedConfig = plainToInstance(EnvironmentVariables, convertedConfig, {
-    enableImplicitConversion: true,
-  });
+  const validatedConfig = plainToInstance(
+    EnvironmentVariables,
+    convertedConfig,
+    {
+      enableImplicitConversion: true,
+    },
+  );
 
-  const errors = validateSync(validatedConfig, { skipMissingProperties: false });
+  const errors = validateSync(validatedConfig, {
+    skipMissingProperties: false,
+  });
 
   if (errors.length > 0) {
     throw new Error(`Environment validation failed:\n${errors.toString()}`);
