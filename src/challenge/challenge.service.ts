@@ -166,7 +166,7 @@ export class ChallengeService {
     );
 
     // Merge signedUrl and locale into metadata
-    const currentMetadata = (challenge.metadata as any) || {};
+    const currentMetadata: any = (challenge as any).metadata || {};
     let metadataChanged = false;
     if (!currentMetadata.actionUrl) {
       currentMetadata.actionUrl = signedUrl;
@@ -386,8 +386,7 @@ export class ChallengeService {
       {
         challengeId: id,
         plainCode,
-        templateName:
-          challenge.metadata && (challenge.metadata as any).templateName, // or fallback
+        templateName: (challenge as any).metadata?.templateName, // or fallback
       },
       {
         attempts: 3,
