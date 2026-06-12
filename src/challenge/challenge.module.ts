@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ChallengeService } from './challenge.service.js';
 import { ChallengeController } from './challenge.controller.js';
+import { VerifyLinkController } from './verify-link.controller.js';
+import { VerifyLinkService } from './verify-link.service.js';
 import { BullModule } from '@nestjs/bullmq';
 import { ApiKeyModule } from '../api-key/api-key.module.js';
 
@@ -11,8 +13,8 @@ import { ApiKeyModule } from '../api-key/api-key.module.js';
       name: 'delivery_queue',
     }),
   ],
-  controllers: [ChallengeController],
-  providers: [ChallengeService],
-  exports: [ChallengeService],
+  controllers: [ChallengeController, VerifyLinkController],
+  providers: [ChallengeService, VerifyLinkService],
+  exports: [ChallengeService, VerifyLinkService],
 })
 export class ChallengeModule {}

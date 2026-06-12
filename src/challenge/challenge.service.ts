@@ -1,4 +1,12 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException, HttpException, HttpStatus, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+  HttpException,
+  HttpStatus,
+  Logger,
+} from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service.js';
 import { SecretsService } from '../common/security/secrets.service.js';
 import { PolicyService } from '../common/security/policy.service.js';
@@ -8,6 +16,8 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { randomInt, createHash } from 'crypto';
 import { ChallengeStatus } from '@prisma/client';
+import { WebhookEndpointService } from '../webhook/webhook-endpoint.service.js';
+import { VerifyLinkService } from './verify-link.service.js';
 
 @Injectable()
 export class ChallengeService {
@@ -18,6 +28,8 @@ export class ChallengeService {
     private readonly secretsService: SecretsService,
     private readonly policyService: PolicyService,
     private readonly configService: ConfigService,
+    private readonly webhookService: WebhookEndpointService,
+    private readonly verifyLinkService: VerifyLinkService,
     @InjectQueue('delivery_queue') private readonly deliveryQueue: Queue,
   ) {}
 
@@ -25,7 +37,11 @@ export class ChallengeService {
     return createHash('sha256').update(value).digest('hex');
   }
 
-  async createChallenge(projectId: string, workspaceId: string, dto: CreateChallengeDto) {
+  async createChallenge(
+    projectId: string,
+    workspaceId: string,
+    dto: CreateChallengeDto,
+  ) {
     const project = await this.prisma.project.findUnique({
       where: { id: projectId },
     });
@@ -39,22 +55,32 @@ export class ChallengeService {
       try {
         const parsedUrl = new URL(actionUrl);
         const domain = parsedUrl.hostname;
-        const isAllowed = project.allowedDomains.includes(domain) || domain === 'localhost';
+        const isAllowed =
+          project.allowedDomains.includes(domain) || domain === 'localhost';
         if (!isAllowed) {
-          throw new ForbiddenException(`Redirección a dominio no permitido: ${domain}`);
+          throw new ForbiddenException(
+            `Redirección a dominio no permitido: ${domain}`,
+          );
         }
       } catch (err: any) {
         if (err instanceof ForbiddenException) throw err;
-        throw new BadRequestException('Formato de actionUrl no válido en metadata.');
+        throw new BadRequestException(
+          'Formato de actionUrl no válido en metadata.',
+        );
       }
     }
 
     // 2. Validate Quota Limits
-    await this.policyService.validateQuota(workspaceId, projectId, dto.channel);
+    await this.policyService.validateQuota(
+      workspaceId,
+      projectId,
+      dto.channel,
+      dto.destination,
+    );
 
     // 3. anti-flood Resend Cooldown Check
     const destinationHash = this.hashString(dto.destination);
-    
+
     // Check if there is a pending challenge created in the last 60 seconds
     const cooldownPeriod = new Date(Date.now() - 60 * 1000);
     const existingPending = await this.prisma.challenge.findFirst({
@@ -71,7 +97,8 @@ export class ChallengeService {
       throw new HttpException(
         {
           statusCode: HttpStatus.TOO_MANY_REQUESTS,
-          message: 'Por favor, espere 60 segundos antes de solicitar otro código de verificación.',
+          message:
+            'Por favor, espere 60 segundos antes de solicitar otro código de verificación.',
           error: 'Too Many Requests',
         },
         HttpStatus.TOO_MANY_REQUESTS,
@@ -90,7 +117,9 @@ export class ChallengeService {
       });
 
       if (duplicate) {
-        this.logger.log(`Idempotency key match: returning existing challenge ${duplicate.id}`);
+        this.logger.log(
+          `Idempotency key match: returning existing challenge ${duplicate.id}`,
+        );
         return {
           id: duplicate.id,
           status: duplicate.status,
@@ -110,11 +139,12 @@ export class ChallengeService {
     const destinationEncrypted = this.secretsService.encrypt(dto.destination);
 
     // 7. Calculate Expiration Date
-    const expirationMin = this.configService.get<number>('OTP_DEFAULT_EXPIRATION_MINUTES') ?? 5;
+    const expirationMin =
+      this.configService.get<number>('OTP_DEFAULT_EXPIRATION_MINUTES') ?? 5;
     const expiresAt = new Date(Date.now() + expirationMin * 60 * 1000);
 
     // 8. Store Challenge
-    const challenge = await this.prisma.challenge.create({
+    let challenge = await this.prisma.challenge.create({
       data: {
         workspaceId,
         projectId,
@@ -126,9 +156,32 @@ export class ChallengeService {
         codeLength: otpLength,
         expiresAt,
         idempotencyKey: dto.idempotencyKey,
-        metadata: dto.metadata ? JSON.parse(JSON.stringify(dto.metadata)) : undefined,
+        metadata: dto.metadata ? JSON.parse(JSON.stringify(dto.metadata)) : {},
       },
     });
+
+    const signedUrl = this.verifyLinkService.generateSignedUrl(
+      challenge.id,
+      challenge.expiresAt,
+    );
+
+    // Merge signedUrl and locale into metadata
+    const currentMetadata = (challenge.metadata as any) || {};
+    let metadataChanged = false;
+    if (!currentMetadata.actionUrl) {
+      currentMetadata.actionUrl = signedUrl;
+      metadataChanged = true;
+    }
+    if (dto.locale && currentMetadata.locale !== dto.locale) {
+      currentMetadata.locale = dto.locale;
+      metadataChanged = true;
+    }
+    if (metadataChanged) {
+      challenge = await this.prisma.challenge.update({
+        where: { id: challenge.id },
+        data: { metadata: currentMetadata },
+      });
+    }
 
     // 9. Enqueue async delivery job in Redis via BullMQ
     await this.deliveryQueue.add(
@@ -152,7 +205,9 @@ export class ChallengeService {
       data: { status: 'QUEUED' },
     });
 
-    this.logger.log(`Challenge ${challenge.id} queued for destination ${dto.destination} via ${dto.channel}`);
+    this.logger.log(
+      `Challenge ${challenge.id} queued for destination ${dto.destination} via ${dto.channel}`,
+    );
 
     // Sandbox check: expose plain code only in development or test environments
     const nodeEnv = this.configService.get<string>('NODE_ENV');
@@ -161,6 +216,7 @@ export class ChallengeService {
       id: challenge.id,
       status: ChallengeStatus.QUEUED,
       expiresAt: challenge.expiresAt,
+      signedUrl,
       ...(isDev ? { sandboxCode: plainCode } : {}),
     };
   }
@@ -175,11 +231,20 @@ export class ChallengeService {
     }
 
     if (challenge.status === 'VERIFIED') {
-      return { verified: true, message: 'El código ya ha sido verificado anteriormente.' };
+      return {
+        verified: true,
+        message: 'El código ya ha sido verificado anteriormente.',
+      };
     }
 
-    if (challenge.status === 'FAILED' || challenge.status === 'EXPIRED' || challenge.status === 'CANCELLED') {
-      throw new BadRequestException(`No se puede verificar esta solicitud: estado actual es ${challenge.status}.`);
+    if (
+      challenge.status === 'FAILED' ||
+      challenge.status === 'EXPIRED' ||
+      challenge.status === 'CANCELLED'
+    ) {
+      throw new BadRequestException(
+        `No se puede verificar esta solicitud: estado actual es ${challenge.status}.`,
+      );
     }
 
     // Expiration check
@@ -197,7 +262,9 @@ export class ChallengeService {
         where: { id },
         data: { status: 'FAILED' },
       });
-      throw new BadRequestException('Se ha superado el número máximo de intentos de verificación.');
+      throw new BadRequestException(
+        'Se ha superado el número máximo de intentos de verificación.',
+      );
     }
 
     // Increment attempts
@@ -217,6 +284,20 @@ export class ChallengeService {
           consumedAt: new Date(),
         },
       });
+
+      await this.webhookService.triggerEvent(
+        challenge.projectId,
+        'challenge.verified',
+        {
+          challengeId: challenge.id,
+          purpose: challenge.purpose,
+          channel: challenge.channel,
+          destinationHash: challenge.destinationHash,
+          metadata: challenge.metadata,
+          verifiedAt: new Date(),
+        },
+      );
+
       this.logger.log(`Challenge ${id} successfully verified.`);
       return { verified: true, message: 'Verificación exitosa.' };
     }
@@ -227,7 +308,23 @@ export class ChallengeService {
         where: { id },
         data: { status: 'FAILED' },
       });
-      throw new BadRequestException('Código incorrecto. Se ha agotado el número de intentos permitidos.');
+
+      await this.webhookService.triggerEvent(
+        challenge.projectId,
+        'challenge.failed',
+        {
+          challengeId: challenge.id,
+          purpose: challenge.purpose,
+          channel: challenge.channel,
+          destinationHash: challenge.destinationHash,
+          metadata: challenge.metadata,
+          reason: 'MAX_ATTEMPTS_EXCEEDED',
+        },
+      );
+
+      throw new BadRequestException(
+        'Código incorrecto. Se ha agotado el número de intentos permitidos.',
+      );
     }
 
     throw new BadRequestException('Código incorrecto.');
@@ -268,7 +365,8 @@ export class ChallengeService {
     const codeHash = this.hashString(plainCode);
 
     // Calculate new expiration date
-    const expirationMin = this.configService.get<number>('OTP_DEFAULT_EXPIRATION_MINUTES') ?? 5;
+    const expirationMin =
+      this.configService.get<number>('OTP_DEFAULT_EXPIRATION_MINUTES') ?? 5;
     const expiresAt = new Date(Date.now() + expirationMin * 60 * 1000);
 
     const updated = await this.prisma.challenge.update({
@@ -288,7 +386,8 @@ export class ChallengeService {
       {
         challengeId: id,
         plainCode,
-        templateName: challenge.metadata && (challenge.metadata as any).templateName, // or fallback
+        templateName:
+          challenge.metadata && (challenge.metadata as any).templateName, // or fallback
       },
       {
         attempts: 3,
@@ -296,7 +395,9 @@ export class ChallengeService {
       },
     );
 
-    this.logger.log(`Challenge ${id} resent. Resend count: ${updated.resendCount}`);
+    this.logger.log(
+      `Challenge ${id} resent. Resend count: ${updated.resendCount}`,
+    );
 
     const nodeEnv = this.configService.get<string>('NODE_ENV');
     const isDev = nodeEnv === 'development' || nodeEnv === 'test';
@@ -343,13 +444,27 @@ export class ChallengeService {
     }
 
     if (challenge.status === 'VERIFIED') {
-      throw new BadRequestException('No se puede cancelar un código ya verificado.');
+      throw new BadRequestException(
+        'No se puede cancelar un código ya verificado.',
+      );
     }
 
     const updated = await this.prisma.challenge.update({
       where: { id },
       data: { status: 'CANCELLED' },
     });
+
+    await this.webhookService.triggerEvent(
+      challenge.projectId,
+      'challenge.cancelled',
+      {
+        challengeId: challenge.id,
+        purpose: challenge.purpose,
+        channel: challenge.channel,
+        destinationHash: challenge.destinationHash,
+        metadata: challenge.metadata,
+      },
+    );
 
     this.logger.log(`Challenge ${id} cancelled.`);
     return { id: updated.id, status: updated.status };
