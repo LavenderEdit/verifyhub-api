@@ -381,12 +381,13 @@ export class ChallengeService {
     });
 
     // Enqueue new delivery job
+    const challengeMetadata = challenge.metadata as any;
     await this.deliveryQueue.add(
       'send_otp',
       {
         challengeId: id,
         plainCode,
-        templateName: (challenge as any).metadata?.templateName, // or fallback
+        templateName: challengeMetadata?.templateName, // or fallback
       },
       {
         attempts: 3,
