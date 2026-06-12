@@ -1,4 +1,9 @@
-import { Injectable, UnauthorizedException, ConflictException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+  Logger,
+} from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service.js';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -58,16 +63,21 @@ export class AuthService {
       throw new UnauthorizedException('Credenciales inválidas.');
     }
 
-    const isPasswordValid = await argon2.verify(user.passwordHash, loginDto.password);
+    const isPasswordValid = await argon2.verify(
+      user.passwordHash,
+      loginDto.password,
+    );
     if (!isPasswordValid) {
       throw new UnauthorizedException('Credenciales inválidas.');
     }
 
     const tokens = await this.generateTokens(user.id, user.email);
-    
+
     // Save refresh token hash
     const refreshSecret = this.configService.get<string>('JWT_REFRESH_SECRET')!;
-    const decodedRefresh = this.jwtService.verify(tokens.refreshToken, { secret: refreshSecret });
+    const decodedRefresh = this.jwtService.verify(tokens.refreshToken, {
+      secret: refreshSecret,
+    });
     const expiresAt = new Date(decodedRefresh.exp * 1000);
     const tokenHash = this.hashToken(tokens.refreshToken);
 
@@ -96,7 +106,9 @@ export class AuthService {
     try {
       payload = this.jwtService.verify(refreshToken, { secret: refreshSecret });
     } catch (error) {
-      throw new UnauthorizedException('Token de actualización inválido o expirado.');
+      throw new UnauthorizedException(
+        'Token de actualización inválido o expirado.',
+      );
     }
 
     const tokenHash = this.hashToken(refreshToken);
@@ -105,7 +117,11 @@ export class AuthService {
       include: { user: true },
     });
 
-    if (!storedToken || storedToken.revokedAt || new Date() > storedToken.expiresAt) {
+    if (
+      !storedToken ||
+      storedToken.revokedAt ||
+      new Date() > storedToken.expiresAt
+    ) {
       throw new UnauthorizedException('Token de actualización no válido.');
     }
 
@@ -116,9 +132,14 @@ export class AuthService {
     });
 
     // Generate new pair
-    const tokens = await this.generateTokens(storedToken.user.id, storedToken.user.email);
-    
-    const newDecodedRefresh = this.jwtService.verify(tokens.refreshToken, { secret: refreshSecret });
+    const tokens = await this.generateTokens(
+      storedToken.user.id,
+      storedToken.user.email,
+    );
+
+    const newDecodedRefresh = this.jwtService.verify(tokens.refreshToken, {
+      secret: refreshSecret,
+    });
     const newExpiresAt = new Date(newDecodedRefresh.exp * 1000);
     const newHash = this.hashToken(tokens.refreshToken);
 
