@@ -1,4 +1,11 @@
-import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus, Logger } from '@nestjs/common';
+import {
+  ExceptionFilter,
+  Catch,
+  ArgumentsHost,
+  HttpException,
+  HttpStatus,
+  Logger,
+} from '@nestjs/common';
 import { FastifyReply, FastifyRequest } from 'fastify';
 
 @Catch()
@@ -10,15 +17,16 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<FastifyReply>();
     const request = ctx.getRequest<FastifyRequest>();
 
-    const status = exception instanceof HttpException 
-      ? exception.getStatus() 
-      : HttpStatus.INTERNAL_SERVER_ERROR;
+    const status =
+      exception instanceof HttpException
+        ? exception.getStatus()
+        : HttpStatus.INTERNAL_SERVER_ERROR;
 
-    const exceptionResponse = exception instanceof HttpException 
-      ? exception.getResponse() 
-      : null;
+    const exceptionResponse =
+      exception instanceof HttpException ? exception.getResponse() : null;
 
-    const requestId = request.headers['x-request-id'] || (request as any).raw?.id || 'unknown';
+    const requestId =
+      request.headers['x-request-id'] || (request as any).raw?.id || 'unknown';
 
     let message = 'Internal server error';
     let details: any = null;
@@ -35,9 +43,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
       }
     } else if (exception instanceof Error) {
       message = exception.message;
-      this.logger.error(`Unhandled Exception (Request ID: ${requestId}): ${exception.stack}`);
+      this.logger.error(
+        `Unhandled Exception (Request ID: ${requestId}): ${exception.stack}`,
+      );
     } else {
-      this.logger.error(`Unknown Exception (Request ID: ${requestId}): ${JSON.stringify(exception)}`);
+      this.logger.error(
+        `Unknown Exception (Request ID: ${requestId}): ${JSON.stringify(exception)}`,
+      );
     }
 
     const responseBody = {
