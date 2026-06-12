@@ -66,7 +66,10 @@ jest.mock('whatsapp-web.js', () => {
 });
 
 import { Test, TestingModule } from '@nestjs/testing';
-import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
+import {
+  FastifyAdapter,
+  NestFastifyApplication,
+} from '@nestjs/platform-fastify';
 import request from 'supertest';
 import { AppModule } from './../src/app.module';
 import { PrismaService } from '../src/common/prisma/prisma.service';
@@ -84,7 +87,7 @@ describe('VerifyHub API (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication<NestFastifyApplication>(
-      new FastifyAdapter({ logger: false })
+      new FastifyAdapter({ logger: false }),
     );
 
     // Register cookies
@@ -232,7 +235,9 @@ describe('VerifyHub API (e2e)', () => {
 
   it('7. Test SMTP connector connection (Mocked success)', async () => {
     const response = await request(app.getHttpServer())
-      .post(`/v1/connectors/smtp/${smtpConnectorId}/test?workspaceId=${workspaceId}`)
+      .post(
+        `/v1/connectors/smtp/${smtpConnectorId}/test?workspaceId=${workspaceId}`,
+      )
       .set('Authorization', `Bearer ${accessToken}`)
       .expect(200);
 
@@ -290,7 +295,7 @@ describe('VerifyHub API (e2e)', () => {
     expect(response.body.id).toBeDefined();
     expect(response.body.status).toBe('QUEUED');
     expect(response.body.sandboxCode).toBeDefined(); // Visible because NODE_ENV=test/development
-    
+
     challengeId = response.body.id;
     sandboxCode = response.body.sandboxCode;
   });
@@ -351,7 +356,9 @@ describe('VerifyHub API (e2e)', () => {
 
   it('15. Get WhatsApp connector status', async () => {
     const response = await request(app.getHttpServer())
-      .get(`/v1/connectors/whatsapp/${whatsappConnectorId}/status?workspaceId=${workspaceId}`)
+      .get(
+        `/v1/connectors/whatsapp/${whatsappConnectorId}/status?workspaceId=${workspaceId}`,
+      )
       .set('Authorization', `Bearer ${accessToken}`)
       .expect(200);
 
@@ -362,7 +369,9 @@ describe('VerifyHub API (e2e)', () => {
 
   it('16. Restart WhatsApp connector', async () => {
     const response = await request(app.getHttpServer())
-      .post(`/v1/connectors/whatsapp/${whatsappConnectorId}/restart?workspaceId=${workspaceId}`)
+      .post(
+        `/v1/connectors/whatsapp/${whatsappConnectorId}/restart?workspaceId=${workspaceId}`,
+      )
       .set('Authorization', `Bearer ${accessToken}`)
       .expect(200);
 
@@ -390,7 +399,9 @@ describe('VerifyHub API (e2e)', () => {
     });
 
     const response = await request(app.getHttpServer())
-      .post(`/v1/connectors/whatsapp/${whatsappConnectorId}/test-send?workspaceId=${workspaceId}`)
+      .post(
+        `/v1/connectors/whatsapp/${whatsappConnectorId}/test-send?workspaceId=${workspaceId}`,
+      )
       .set('Authorization', `Bearer ${accessToken}`)
       .send({
         to: '+5491123456789',
@@ -420,10 +431,66 @@ describe('VerifyHub API (e2e)', () => {
 
   it('20. Delete WhatsApp connector', async () => {
     const response = await request(app.getHttpServer())
-      .delete(`/v1/connectors/whatsapp/${whatsappConnectorId}?workspaceId=${workspaceId}`)
+      .delete(
+        `/v1/connectors/whatsapp/${whatsappConnectorId}?workspaceId=${workspaceId}`,
+      )
       .set('Authorization', `Bearer ${accessToken}`)
       .expect(200);
 
     expect(response.body.message).toContain('deleted successfully');
+  });
+
+  it('21. Create a Webhook Endpoint for project', async () => {
+    const response = await request(app.getHttpServer())
+      .post(`/v1/projects/${projectId}/webhooks`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({
+        url: 'https://api.myclient.com/webhook-receiver',
+        events: ['challenge.sent', 'challenge.verified'],
+      })
+      .expect(201);
+
+    expect(response.body.url).toBe('https://api.myclient.com/webhook-receiver');
+    expect(response.body.secret).toBeDefined();
+  });
+
+  it('22. List Webhook Endpoints', async () => {
+    const response = await request(app.getHttpServer())
+      .get(`/v1/projects/${projectId}/webhooks`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+
+    expect(response.body.length).toBeGreaterThan(0);
+  });
+
+  it('23. Get Dashboard Metrics', async () => {
+    const response = await request(app.getHttpServer())
+      .get(`/v1/dashboard/metrics?workspaceId=${workspaceId}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+
+    expect(response.body.summary).toBeDefined();
+    expect(response.body.summary.total).toBeDefined();
+  });
+
+  it('24. Get Audit Logs', async () => {
+    const response = await request(app.getHttpServer())
+      .get(`/v1/audit-logs?workspaceId=${workspaceId}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+
+    expect(response.body.data).toBeDefined();
+    expect(response.body.meta).toBeDefined();
+  });
+
+  it('25. Export Audit Logs to CSV', async () => {
+    const response = await request(app.getHttpServer())
+      .get(`/v1/audit-logs/export?workspaceId=${workspaceId}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+
+    expect(response.headers['content-type']).toContain('text/csv');
+    expect(response.text).toContain('Fecha');
+    expect(response.text).toContain('Acción');
   });
 });

@@ -14,7 +14,10 @@ export class WorkspaceService {
     private readonly auditService: AuditService,
   ) {}
 
-  async createWorkspace(userId: string, createWorkspaceDto: CreateWorkspaceDto) {
+  async createWorkspace(
+    userId: string,
+    createWorkspaceDto: CreateWorkspaceDto,
+  ) {
     const workspace = await this.prisma.$transaction(async (tx) => {
       // 1. Create Workspace
       const ws = await tx.workspace.create({
@@ -42,7 +45,9 @@ export class WorkspaceService {
       details: { name: workspace.name },
     });
 
-    this.logger.log(`Workspace created: ${workspace.name} (${workspace.id}) by user ${userId}`);
+    this.logger.log(
+      `Workspace created: ${workspace.name} (${workspace.id}) by user ${userId}`,
+    );
     return workspace;
   }
 
@@ -68,7 +73,11 @@ export class WorkspaceService {
     });
   }
 
-  async createProject(userId: string, workspaceId: string, createProjectDto: CreateProjectDto) {
+  async createProject(
+    userId: string,
+    workspaceId: string,
+    createProjectDto: CreateProjectDto,
+  ) {
     const project = await this.prisma.project.create({
       data: {
         name: createProjectDto.name,
@@ -86,7 +95,9 @@ export class WorkspaceService {
       details: { name: project.name },
     });
 
-    this.logger.log(`Project created: ${project.name} (${project.id}) in workspace ${workspaceId}`);
+    this.logger.log(
+      `Project created: ${project.name} (${project.id}) in workspace ${workspaceId}`,
+    );
     return project;
   }
 
