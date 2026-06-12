@@ -1,4 +1,10 @@
-import { IsArray, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  IsArray,
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export enum ApiScope {
@@ -10,7 +16,10 @@ export enum ApiScope {
 }
 
 export class CreateApiKeyDto {
-  @ApiProperty({ example: 'Production Backend API Key', description: 'Descriptive name for the API key' })
+  @ApiProperty({
+    example: 'Production Backend API Key',
+    description: 'Descriptive name for the API key',
+  })
   @IsString()
   @IsNotEmpty({ message: 'El nombre de la API Key es obligatorio' })
   name!: string;
@@ -25,7 +34,11 @@ export class CreateApiKeyDto {
   @IsEnum(ApiScope, { each: true, message: 'Scope no válido' })
   scopes!: ApiScope[];
 
-  @ApiProperty({ example: '2027-12-31T23:59:59.000Z', description: 'Optional expiration date', required: false })
+  @ApiProperty({
+    example: '2027-12-31T23:59:59.000Z',
+    description: 'Optional expiration date',
+    required: false,
+  })
   @IsOptional()
   expiresAt?: string;
 }
