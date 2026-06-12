@@ -10,12 +10,20 @@ export class WhatsappClientRegistry {
     { client: Client; provider: WwebjsProvider }
   >();
 
-  register(connectorId: string, client: Client, provider: WwebjsProvider): void {
-    this.logger.log(`Registering WhatsApp client in memory for connector: ${connectorId}`);
+  register(
+    connectorId: string,
+    client: Client,
+    provider: WwebjsProvider,
+  ): void {
+    this.logger.log(
+      `Registering WhatsApp client in memory for connector: ${connectorId}`,
+    );
     this.registry.set(connectorId, { client, provider });
   }
 
-  get(connectorId: string): { client: Client; provider: WwebjsProvider } | undefined {
+  get(
+    connectorId: string,
+  ): { client: Client; provider: WwebjsProvider } | undefined {
     return this.registry.get(connectorId);
   }
 
@@ -24,7 +32,9 @@ export class WhatsappClientRegistry {
   }
 
   unregister(connectorId: string): void {
-    this.logger.log(`Unregistering WhatsApp client from memory for connector: ${connectorId}`);
+    this.logger.log(
+      `Unregistering WhatsApp client from memory for connector: ${connectorId}`,
+    );
     this.registry.delete(connectorId);
   }
 
